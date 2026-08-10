@@ -59,6 +59,432 @@ export interface LogPurchaseOptions {
 }
 
 /**
+ * A single product line item, used by the eCommerce events that carry a
+ * product list ({@link BrazePlugin.logCartUpdated},
+ * {@link BrazePlugin.logCheckoutStarted}, {@link BrazePlugin.logOrderPlaced},
+ * {@link BrazePlugin.logOrderCancelled}, {@link BrazePlugin.logOrderRefunded}).
+ */
+export interface EcommerceProduct {
+  /**
+   * The identifier for the product (e.g. a SKU).
+   */
+  productId: string;
+
+  /**
+   * The display name of the product.
+   */
+  productName: string;
+
+  /**
+   * The identifier for the specific variant of the product (e.g. size/color).
+   */
+  variantId: string;
+
+  /**
+   * A URL for an image of the product.
+   */
+  imageUrl?: string;
+
+  /**
+   * A URL to the product's page.
+   */
+  productUrl?: string;
+
+  /**
+   * The number of units of this product in the line item. Must be a
+   * non-negative integer.
+   */
+  quantity: number;
+
+  /**
+   * The price of a single unit of the product.
+   */
+  price: number;
+
+  /**
+   * Optional key/value properties attached to this line item.
+   */
+  metadata?: Record<string, string | number | boolean>;
+}
+
+/**
+ * The action that changed a shopping cart, for {@link BrazePlugin.logCartUpdated}.
+ */
+export type CartUpdatedAction = 'add' | 'remove' | 'replace';
+
+/**
+ * A single order-level discount entry, used by
+ * {@link BrazePlugin.logOrderPlaced}, {@link BrazePlugin.logOrderCancelled},
+ * and {@link BrazePlugin.logOrderRefunded}.
+ */
+export interface OrderDiscount {
+  /**
+   * The discount code applied to the order.
+   */
+  code: string;
+
+  /**
+   * The monetary amount discounted.
+   */
+  amount: number;
+
+  /**
+   * The type of discount (e.g. `"percentage"`, `"fixed"`).
+   */
+  type?: string;
+}
+
+/**
+ * Options for {@link BrazePlugin.logProductViewed}.
+ */
+export interface ProductViewedOptions {
+  /**
+   * The identifier for the viewed product (e.g. a SKU).
+   */
+  productId: string;
+
+  /**
+   * The display name of the viewed product.
+   */
+  productName: string;
+
+  /**
+   * The identifier for the specific variant of the product being viewed.
+   */
+  variantId: string;
+
+  /**
+   * A URL for an image of the product.
+   */
+  imageUrl?: string;
+
+  /**
+   * A URL to the product's page.
+   */
+  productUrl?: string;
+
+  /**
+   * The price of the product, in the given currency.
+   */
+  price: number;
+
+  /**
+   * The ISO 4217 currency code for the price (e.g. `"USD"`).
+   */
+  currency: string;
+
+  /**
+   * A label identifying where this view occurred in your app (e.g. a screen
+   * or feature name).
+   */
+  source: string;
+
+  /**
+   * Optional tags describing why this product is being surfaced.
+   */
+  type?: ('price_drop' | 'back_in_stock')[];
+
+  /**
+   * Optional key/value properties attached to the event.
+   */
+  metadata?: Record<string, string | number | boolean>;
+}
+
+/**
+ * Options for {@link BrazePlugin.logCartUpdated}.
+ */
+export interface CartUpdatedOptions {
+  /**
+   * The identifier for the shopping cart.
+   */
+  cartId: string;
+
+  /**
+   * How the cart changed. Defaults to `"replace"`.
+   */
+  action?: CartUpdatedAction;
+
+  /**
+   * The cart's total value after this update. Required when `action` is
+   * omitted or `"replace"`; optional when `action` is `"add"` or `"remove"`.
+   */
+  totalValue?: number;
+
+  /**
+   * The cart's subtotal value (before tax/shipping), if available.
+   */
+  subtotalValue?: number;
+
+  /**
+   * The tax amount applied to the cart, if available.
+   */
+  tax?: number;
+
+  /**
+   * The shipping cost applied to the cart, if available.
+   */
+  shipping?: number;
+
+  /**
+   * The ISO 4217 currency code for the monetary values (e.g. `"USD"`).
+   */
+  currency: string;
+
+  /**
+   * The product line items in the cart. Must contain at least one item.
+   */
+  products: EcommerceProduct[];
+
+  /**
+   * A label identifying where this update occurred in your app.
+   */
+  source: string;
+
+  /**
+   * Optional key/value properties attached to the event.
+   */
+  metadata?: Record<string, string | number | boolean>;
+}
+
+/**
+ * Options for {@link BrazePlugin.logCheckoutStarted}.
+ */
+export interface CheckoutStartedOptions {
+  /**
+   * The identifier for this checkout.
+   */
+  checkoutId: string;
+
+  /**
+   * The identifier for the shopping cart that started checkout, if available.
+   */
+  cartId?: string;
+
+  /**
+   * The checkout's total value.
+   */
+  totalValue: number;
+
+  /**
+   * The checkout's subtotal value (before tax/shipping), if available.
+   */
+  subtotalValue?: number;
+
+  /**
+   * The tax amount applied to the checkout, if available.
+   */
+  tax?: number;
+
+  /**
+   * The shipping cost applied to the checkout, if available.
+   */
+  shipping?: number;
+
+  /**
+   * The ISO 4217 currency code for the monetary values (e.g. `"USD"`).
+   */
+  currency: string;
+
+  /**
+   * The product line items being checked out. Must contain at least one item.
+   */
+  products: EcommerceProduct[];
+
+  /**
+   * A label identifying where checkout started in your app.
+   */
+  source: string;
+
+  /**
+   * Optional key/value properties attached to the event. Braze recognizes
+   * the `checkout_url` metadata key for a link back to the checkout.
+   */
+  metadata?: Record<string, string | number | boolean>;
+}
+
+/**
+ * Options for {@link BrazePlugin.logOrderPlaced}.
+ */
+export interface OrderPlacedOptions {
+  /**
+   * The identifier for the placed order.
+   */
+  orderId: string;
+
+  /**
+   * The identifier for the shopping cart the order was placed from, if
+   * available.
+   */
+  cartId?: string;
+
+  /**
+   * The order's total value.
+   */
+  totalValue: number;
+
+  /**
+   * The order's subtotal value (before tax/shipping), if available.
+   */
+  subtotalValue?: number;
+
+  /**
+   * The tax amount applied to the order, if available.
+   */
+  tax?: number;
+
+  /**
+   * The shipping cost applied to the order, if available.
+   */
+  shipping?: number;
+
+  /**
+   * The ISO 4217 currency code for the monetary values (e.g. `"USD"`).
+   */
+  currency: string;
+
+  /**
+   * The total monetary amount discounted on this order, if any.
+   */
+  totalDiscounts?: number;
+
+  /**
+   * The individual discounts applied to this order, if any.
+   */
+  discounts?: OrderDiscount[];
+
+  /**
+   * The product line items in the order. Must contain at least one item.
+   */
+  products: EcommerceProduct[];
+
+  /**
+   * A label identifying where the order was placed in your app.
+   */
+  source: string;
+
+  /**
+   * Optional key/value properties attached to the event. Braze recognizes
+   * the `order_status_url` metadata key for a link to order status.
+   */
+  metadata?: Record<string, string | number | boolean>;
+}
+
+/**
+ * Options for {@link BrazePlugin.logOrderCancelled}.
+ */
+export interface OrderCancelledOptions {
+  /**
+   * The identifier for the cancelled order.
+   */
+  orderId: string;
+
+  /**
+   * The order's total value. Must be non-negative.
+   */
+  totalValue: number;
+
+  /**
+   * The order's subtotal value (before tax/shipping), if available.
+   */
+  subtotalValue?: number;
+
+  /**
+   * The tax amount applied to the order, if available.
+   */
+  tax?: number;
+
+  /**
+   * The shipping cost applied to the order, if available.
+   */
+  shipping?: number;
+
+  /**
+   * The ISO 4217 currency code for the monetary values (e.g. `"USD"`).
+   */
+  currency: string;
+
+  /**
+   * The total monetary amount discounted on this order, if any.
+   */
+  totalDiscounts?: number;
+
+  /**
+   * The individual discounts applied to this order, if any.
+   */
+  discounts?: OrderDiscount[];
+
+  /**
+   * The reason the order was cancelled.
+   */
+  cancelReason: string;
+
+  /**
+   * The product line items in the cancelled order. Must contain at least one
+   * item.
+   */
+  products: EcommerceProduct[];
+
+  /**
+   * A label identifying where the cancellation was initiated in your app.
+   */
+  source: string;
+
+  /**
+   * Optional key/value properties attached to the event. Braze recognizes
+   * the `order_status_url` metadata key for a link to order status.
+   */
+  metadata?: Record<string, string | number | boolean>;
+}
+
+/**
+ * Options for {@link BrazePlugin.logOrderRefunded}.
+ */
+export interface OrderRefundedOptions {
+  /**
+   * The identifier for the refunded order.
+   */
+  orderId: string;
+
+  /**
+   * The refunded amount. Must be non-negative. For partial refunds, send
+   * only the amount that was refunded, not the original order total.
+   */
+  totalValue: number;
+
+  /**
+   * The ISO 4217 currency code for the monetary values (e.g. `"USD"`).
+   */
+  currency: string;
+
+  /**
+   * The total monetary amount discounted on this order, if any.
+   */
+  totalDiscounts?: number;
+
+  /**
+   * The individual discounts applied to this order, if any.
+   */
+  discounts?: OrderDiscount[];
+
+  /**
+   * The product line items in the refunded order. Must contain at least one
+   * item.
+   */
+  products: EcommerceProduct[];
+
+  /**
+   * A label identifying where the refund was initiated in your app.
+   */
+  source: string;
+
+  /**
+   * Optional key/value properties attached to the event. Braze recognizes
+   * the `order_status_url` metadata key for a link to order status.
+   */
+  metadata?: Record<string, string | number | boolean>;
+}
+
+/**
  * Options for {@link BrazePlugin.setCustomUserAttribute}.
  */
 export interface SetCustomUserAttributeOptions {
@@ -155,4 +581,160 @@ export interface BrazePlugin {
    * await Braze.setCustomUserAttribute({ key: 'favorite_color', value: 'blue' });
    */
   setCustomUserAttribute(options: SetCustomUserAttributeOptions): Promise<void>;
+
+  /**
+   * Logs Braze's recommended `product_viewed` eCommerce event.
+   *
+   * Backed by a native Braze SDK class (Android `ProductViewedEvent`, iOS
+   * `Braze.Ecommerce.ProductViewedEvent`), which validates the payload
+   * before the event is queued.
+   *
+   * @param options The product view details.
+   * @throws If a required field is missing or invalid (e.g. empty
+   * `productId`, negative `price`, non-ISO-4217 `currency`), or if the
+   * native Braze SDK has not been configured natively yet.
+   *
+   * @example
+   * await Braze.logProductViewed({
+   *   productId: 'sku-123',
+   *   productName: 'Running Shoes',
+   *   variantId: 'sku-123-blue-10',
+   *   price: 89.99,
+   *   currency: 'USD',
+   *   source: 'product_detail_screen',
+   * });
+   */
+  logProductViewed(options: ProductViewedOptions): Promise<void>;
+
+  /**
+   * Logs Braze's recommended `cart_updated` eCommerce event.
+   *
+   * Backed by a native Braze SDK class (Android `CartUpdatedEvent`, iOS
+   * `Braze.Ecommerce.CartUpdatedEvent`), which validates the payload before
+   * the event is queued.
+   *
+   * @param options The cart update details.
+   * @throws If a required field is missing or invalid (e.g. empty
+   * `products`, missing `totalValue` when `action` is omitted or
+   * `"replace"`, non-ISO-4217 `currency`), or if the native Braze SDK has
+   * not been configured natively yet.
+   *
+   * @example
+   * await Braze.logCartUpdated({
+   *   cartId: 'cart-456',
+   *   totalValue: 89.99,
+   *   currency: 'USD',
+   *   source: 'cart_screen',
+   *   products: [
+   *     { productId: 'sku-123', productName: 'Running Shoes', variantId: 'sku-123-blue-10', quantity: 1, price: 89.99 },
+   *   ],
+   * });
+   */
+  logCartUpdated(options: CartUpdatedOptions): Promise<void>;
+
+  /**
+   * Logs Braze's recommended `checkout_started` eCommerce event.
+   *
+   * Backed by a native Braze SDK class (Android `CheckoutStartedEvent`, iOS
+   * `Braze.Ecommerce.CheckoutStartedEvent`), which validates the payload
+   * before the event is queued.
+   *
+   * @param options The checkout details.
+   * @throws If a required field is missing or invalid (e.g. empty
+   * `products`, negative `totalValue`, non-ISO-4217 `currency`), or if the
+   * native Braze SDK has not been configured natively yet.
+   *
+   * @example
+   * await Braze.logCheckoutStarted({
+   *   checkoutId: 'checkout-789',
+   *   totalValue: 89.99,
+   *   currency: 'USD',
+   *   source: 'checkout_screen',
+   *   products: [
+   *     { productId: 'sku-123', productName: 'Running Shoes', variantId: 'sku-123-blue-10', quantity: 1, price: 89.99 },
+   *   ],
+   * });
+   */
+  logCheckoutStarted(options: CheckoutStartedOptions): Promise<void>;
+
+  /**
+   * Logs Braze's recommended `order_placed` eCommerce event.
+   *
+   * Backed by a native Braze SDK class (Android `OrderPlacedEvent`, iOS
+   * `Braze.Ecommerce.OrderPlacedEvent`), which validates the payload before
+   * the event is queued.
+   *
+   * @param options The order details.
+   * @throws If a required field is missing or invalid (e.g. empty
+   * `products`, negative `totalValue`, non-ISO-4217 `currency`), or if the
+   * native Braze SDK has not been configured natively yet.
+   *
+   * @example
+   * await Braze.logOrderPlaced({
+   *   orderId: 'order-321',
+   *   totalValue: 89.99,
+   *   currency: 'USD',
+   *   source: 'checkout_screen',
+   *   products: [
+   *     { productId: 'sku-123', productName: 'Running Shoes', variantId: 'sku-123-blue-10', quantity: 1, price: 89.99 },
+   *   ],
+   * });
+   */
+  logOrderPlaced(options: OrderPlacedOptions): Promise<void>;
+
+  /**
+   * Logs Braze's recommended `order_cancelled` eCommerce event.
+   *
+   * Braze does not provide a native typed class for this event on either
+   * platform — this method validates the payload natively (replicating the
+   * same rules the typed classes above enforce) and dispatches it via
+   * `logCustomEvent` with the event name `"ecommerce.order_cancelled"`, so
+   * that invalid payloads fail fast here instead of being silently ingested.
+   *
+   * @param options The cancellation details.
+   * @throws If a required field is missing or invalid (e.g. empty
+   * `products`, empty `cancelReason`, negative `totalValue`, non-ISO-4217
+   * `currency`), or if the native Braze SDK has not been configured
+   * natively yet.
+   *
+   * @example
+   * await Braze.logOrderCancelled({
+   *   orderId: 'order-321',
+   *   totalValue: 89.99,
+   *   currency: 'USD',
+   *   cancelReason: 'customer_request',
+   *   source: 'support_screen',
+   *   products: [
+   *     { productId: 'sku-123', productName: 'Running Shoes', variantId: 'sku-123-blue-10', quantity: 1, price: 89.99 },
+   *   ],
+   * });
+   */
+  logOrderCancelled(options: OrderCancelledOptions): Promise<void>;
+
+  /**
+   * Logs Braze's recommended `order_refunded` eCommerce event.
+   *
+   * Braze does not provide a native typed class for this event on either
+   * platform — this method validates the payload natively (replicating the
+   * same rules the typed classes above enforce) and dispatches it via
+   * `logCustomEvent` with the event name `"ecommerce.order_refunded"`, so
+   * that invalid payloads fail fast here instead of being silently ingested.
+   *
+   * @param options The refund details.
+   * @throws If a required field is missing or invalid (e.g. empty
+   * `products`, negative `totalValue`, non-ISO-4217 `currency`), or if the
+   * native Braze SDK has not been configured natively yet.
+   *
+   * @example
+   * await Braze.logOrderRefunded({
+   *   orderId: 'order-321',
+   *   totalValue: 29.99,
+   *   currency: 'USD',
+   *   source: 'support_screen',
+   *   products: [
+   *     { productId: 'sku-123', productName: 'Running Shoes', variantId: 'sku-123-blue-10', quantity: 1, price: 29.99 },
+   *   ],
+   * });
+   */
+  logOrderRefunded(options: OrderRefundedOptions): Promise<void>;
 }

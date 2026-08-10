@@ -2,9 +2,15 @@ import { WebPlugin } from '@capacitor/core';
 
 import type {
   BrazePlugin,
+  CartUpdatedOptions,
   ChangeUserOptions,
+  CheckoutStartedOptions,
   LogCustomEventOptions,
   LogPurchaseOptions,
+  OrderCancelledOptions,
+  OrderPlacedOptions,
+  OrderRefundedOptions,
+  ProductViewedOptions,
   SetCustomUserAttributeOptions,
 } from './definitions';
 
@@ -32,6 +38,30 @@ export class BrazeWeb extends WebPlugin implements BrazePlugin {
   }
 
   async setCustomUserAttribute(_options: SetCustomUserAttributeOptions): Promise<void> {
+    console.warn(WEB_NOT_SUPPORTED_MESSAGE);
+  }
+
+  async logProductViewed(_options: ProductViewedOptions): Promise<void> {
+    console.warn(WEB_NOT_SUPPORTED_MESSAGE);
+  }
+
+  async logCartUpdated(_options: CartUpdatedOptions): Promise<void> {
+    console.warn(WEB_NOT_SUPPORTED_MESSAGE);
+  }
+
+  async logCheckoutStarted(_options: CheckoutStartedOptions): Promise<void> {
+    console.warn(WEB_NOT_SUPPORTED_MESSAGE);
+  }
+
+  async logOrderPlaced(_options: OrderPlacedOptions): Promise<void> {
+    console.warn(WEB_NOT_SUPPORTED_MESSAGE);
+  }
+
+  async logOrderCancelled(_options: OrderCancelledOptions): Promise<void> {
+    console.warn(WEB_NOT_SUPPORTED_MESSAGE);
+  }
+
+  async logOrderRefunded(_options: OrderRefundedOptions): Promise<void> {
     console.warn(WEB_NOT_SUPPORTED_MESSAGE);
   }
 }
