@@ -55,6 +55,42 @@ await Braze.logPurchase({
 await Braze.setCustomUserAttribute({ key: 'favorite_color', value: 'blue' });
 ```
 
+## eCommerce events
+
+This plugin exposes Braze's [6 recommended eCommerce events](https://www.braze.com/docs/developer_guide/analytics/ecommerce) — `product_viewed`, `cart_updated`, `checkout_started`, `order_placed`, `order_cancelled`, `order_refunded` — as 6 methods with a uniform, fully-typed API: every method takes a single typed `options` object and returns `Promise<void>`, the same shape as every other method in this plugin.
+
+Underneath, the implementation differs per event, because Braze itself doesn't offer the same tooling for all 6:
+
+* **`logProductViewed`, `logCartUpdated`, `logCheckoutStarted`, `logOrderPlaced`** are backed by a native Braze SDK class on each platform (Android `ProductViewedEvent`/`CartUpdatedEvent`/`CheckoutStartedEvent`/`OrderPlacedEvent`, iOS `Braze.Ecommerce.*`). Those native classes validate the payload when they're constructed and reject with a clear error before anything is queued.
+* **`logOrderCancelled`, `logOrderRefunded`** have no native typed class on either platform — Braze's own guidance is to log these two manually via `logCustomEvent`. This plugin validates their payload natively (replicating the same non-blank/length and non-negative rules the typed classes above enforce, including reusing the native product line-item type for the `products` array) before dispatching via `logCustomEvent` with the event names `"ecommerce.order_cancelled"` / `"ecommerce.order_refunded"`, so an invalid payload is still rejected immediately instead of being silently ingested. One difference: `currency` is only checked for a 3-letter format here, not against a real ISO 4217 code list the way the native SDK classes may do for the other 4 events.
+
+From the calling code, that difference is invisible — both call shapes below are equally simple:
+
+```typescript
+// Backed by a native Braze SDK class.
+await Braze.logProductViewed({
+  productId: 'sku-123',
+  productName: 'Running Shoes',
+  variantId: 'sku-123-blue-10',
+  price: 89.99,
+  currency: 'USD',
+  source: 'product_detail_screen',
+});
+
+// No native class — validated here, then dispatched via logCustomEvent.
+await Braze.logOrderRefunded({
+  orderId: 'order-321',
+  totalValue: 29.99, // partial refund: only the refunded amount
+  currency: 'USD',
+  source: 'support_screen',
+  products: [
+    { productId: 'sku-123', productName: 'Running Shoes', variantId: 'sku-123-blue-10', quantity: 1, price: 29.99 },
+  ],
+});
+```
+
+See the [Braze eCommerce events guide](https://www.braze.com/docs/developer_guide/analytics/ecommerce) for the full schema of each event, and the [API](#api) section below for this plugin's exact option types.
+
 ## API
 
 <docgen-index>
@@ -63,6 +99,12 @@ await Braze.setCustomUserAttribute({ key: 'favorite_color', value: 'blue' });
 * [`logCustomEvent(...)`](#logcustomevent)
 * [`logPurchase(...)`](#logpurchase)
 * [`setCustomUserAttribute(...)`](#setcustomuserattribute)
+* [`logProductViewed(...)`](#logproductviewed)
+* [`logCartUpdated(...)`](#logcartupdated)
+* [`logCheckoutStarted(...)`](#logcheckoutstarted)
+* [`logOrderPlaced(...)`](#logorderplaced)
+* [`logOrderCancelled(...)`](#logordercancelled)
+* [`logOrderRefunded(...)`](#logorderrefunded)
 * [Interfaces](#interfaces)
 * [Type Aliases](#type-aliases)
 
@@ -150,6 +192,124 @@ Sets a custom attribute on the current user's Braze profile.
 --------------------
 
 
+### logProductViewed(...)
+
+```typescript
+logProductViewed(options: ProductViewedOptions) => Promise<void>
+```
+
+Logs Braze's recommended `product_viewed` eCommerce event.
+
+Backed by a native Braze SDK class (Android `ProductViewedEvent`, iOS
+`Braze.Ecommerce.ProductViewedEvent`), which validates the payload
+before the event is queued.
+
+| Param         | Type                                                                  | Description               |
+| ------------- | --------------------------------------------------------------------- | ------------------------- |
+| **`options`** | <code><a href="#productviewedoptions">ProductViewedOptions</a></code> | The product view details. |
+
+--------------------
+
+
+### logCartUpdated(...)
+
+```typescript
+logCartUpdated(options: CartUpdatedOptions) => Promise<void>
+```
+
+Logs Braze's recommended `cart_updated` eCommerce event.
+
+Backed by a native Braze SDK class (Android `CartUpdatedEvent`, iOS
+`Braze.Ecommerce.CartUpdatedEvent`), which validates the payload before
+the event is queued.
+
+| Param         | Type                                                              | Description              |
+| ------------- | ----------------------------------------------------------------- | ------------------------ |
+| **`options`** | <code><a href="#cartupdatedoptions">CartUpdatedOptions</a></code> | The cart update details. |
+
+--------------------
+
+
+### logCheckoutStarted(...)
+
+```typescript
+logCheckoutStarted(options: CheckoutStartedOptions) => Promise<void>
+```
+
+Logs Braze's recommended `checkout_started` eCommerce event.
+
+Backed by a native Braze SDK class (Android `CheckoutStartedEvent`, iOS
+`Braze.Ecommerce.CheckoutStartedEvent`), which validates the payload
+before the event is queued.
+
+| Param         | Type                                                                      | Description           |
+| ------------- | ------------------------------------------------------------------------- | --------------------- |
+| **`options`** | <code><a href="#checkoutstartedoptions">CheckoutStartedOptions</a></code> | The checkout details. |
+
+--------------------
+
+
+### logOrderPlaced(...)
+
+```typescript
+logOrderPlaced(options: OrderPlacedOptions) => Promise<void>
+```
+
+Logs Braze's recommended `order_placed` eCommerce event.
+
+Backed by a native Braze SDK class (Android `OrderPlacedEvent`, iOS
+`Braze.Ecommerce.OrderPlacedEvent`), which validates the payload before
+the event is queued.
+
+| Param         | Type                                                              | Description        |
+| ------------- | ----------------------------------------------------------------- | ------------------ |
+| **`options`** | <code><a href="#orderplacedoptions">OrderPlacedOptions</a></code> | The order details. |
+
+--------------------
+
+
+### logOrderCancelled(...)
+
+```typescript
+logOrderCancelled(options: OrderCancelledOptions) => Promise<void>
+```
+
+Logs Braze's recommended `order_cancelled` eCommerce event.
+
+Braze does not provide a native typed class for this event on either
+platform — this method validates the payload natively (replicating the
+same rules the typed classes above enforce) and dispatches it via
+`logCustomEvent` with the event name `"ecommerce.order_cancelled"`, so
+that invalid payloads fail fast here instead of being silently ingested.
+
+| Param         | Type                                                                    | Description               |
+| ------------- | ----------------------------------------------------------------------- | ------------------------- |
+| **`options`** | <code><a href="#ordercancelledoptions">OrderCancelledOptions</a></code> | The cancellation details. |
+
+--------------------
+
+
+### logOrderRefunded(...)
+
+```typescript
+logOrderRefunded(options: OrderRefundedOptions) => Promise<void>
+```
+
+Logs Braze's recommended `order_refunded` eCommerce event.
+
+Braze does not provide a native typed class for this event on either
+platform — this method validates the payload natively (replicating the
+same rules the typed classes above enforce) and dispatches it via
+`logCustomEvent` with the event name `"ecommerce.order_refunded"`, so
+that invalid payloads fail fast here instead of being silently ingested.
+
+| Param         | Type                                                                  | Description         |
+| ------------- | --------------------------------------------------------------------- | ------------------- |
+| **`options`** | <code><a href="#orderrefundedoptions">OrderRefundedOptions</a></code> | The refund details. |
+
+--------------------
+
+
 ### Interfaces
 
 
@@ -195,6 +355,148 @@ Options for {@link BrazePlugin.setCustomUserAttribute}.
 | **`value`** | <code>string \| number \| boolean</code> | The value to set for the attribute. Arrays and objects are not supported by this method; use the native SDK directly for array-typed custom attributes. |
 
 
+#### ProductViewedOptions
+
+Options for {@link BrazePlugin.logProductViewed}.
+
+| Prop              | Type                                                                                 | Description                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| **`productId`**   | <code>string</code>                                                                  | The identifier for the viewed product (e.g. a SKU).                                       |
+| **`productName`** | <code>string</code>                                                                  | The display name of the viewed product.                                                   |
+| **`variantId`**   | <code>string</code>                                                                  | The identifier for the specific variant of the product being viewed.                      |
+| **`imageUrl`**    | <code>string</code>                                                                  | A URL for an image of the product.                                                        |
+| **`productUrl`**  | <code>string</code>                                                                  | A URL to the product's page.                                                              |
+| **`price`**       | <code>number</code>                                                                  | The price of the product, in the given currency.                                          |
+| **`currency`**    | <code>string</code>                                                                  | The ISO 4217 currency code for the price (e.g. `"USD"`).                                  |
+| **`source`**      | <code>string</code>                                                                  | A label identifying where this view occurred in your app (e.g. a screen or feature name). |
+| **`type`**        | <code>('price_drop' \| 'back_in_stock')[]</code>                                     | Optional tags describing why this product is being surfaced.                              |
+| **`metadata`**    | <code><a href="#record">Record</a>&lt;string, string \| number \| boolean&gt;</code> | Optional key/value properties attached to the event.                                      |
+
+
+#### CartUpdatedOptions
+
+Options for {@link BrazePlugin.logCartUpdated}.
+
+| Prop                | Type                                                                                 | Description                                                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`cartId`**        | <code>string</code>                                                                  | The identifier for the shopping cart.                                                                                                        |
+| **`action`**        | <code><a href="#cartupdatedaction">CartUpdatedAction</a></code>                      | How the cart changed. Defaults to `"replace"`.                                                                                               |
+| **`totalValue`**    | <code>number</code>                                                                  | The cart's total value after this update. Required when `action` is omitted or `"replace"`; optional when `action` is `"add"` or `"remove"`. |
+| **`subtotalValue`** | <code>number</code>                                                                  | The cart's subtotal value (before tax/shipping), if available.                                                                               |
+| **`tax`**           | <code>number</code>                                                                  | The tax amount applied to the cart, if available.                                                                                            |
+| **`shipping`**      | <code>number</code>                                                                  | The shipping cost applied to the cart, if available.                                                                                         |
+| **`currency`**      | <code>string</code>                                                                  | The ISO 4217 currency code for the monetary values (e.g. `"USD"`).                                                                           |
+| **`products`**      | <code>EcommerceProduct[]</code>                                                      | The product line items in the cart. Must contain at least one item.                                                                          |
+| **`source`**        | <code>string</code>                                                                  | A label identifying where this update occurred in your app.                                                                                  |
+| **`metadata`**      | <code><a href="#record">Record</a>&lt;string, string \| number \| boolean&gt;</code> | Optional key/value properties attached to the event.                                                                                         |
+
+
+#### EcommerceProduct
+
+A single product line item, used by the eCommerce events that carry a
+product list ({@link BrazePlugin.logCartUpdated},
+{@link BrazePlugin.logCheckoutStarted}, {@link BrazePlugin.logOrderPlaced},
+{@link BrazePlugin.logOrderCancelled}, {@link BrazePlugin.logOrderRefunded}).
+
+| Prop              | Type                                                                                 | Description                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| **`productId`**   | <code>string</code>                                                                  | The identifier for the product (e.g. a SKU).                                          |
+| **`productName`** | <code>string</code>                                                                  | The display name of the product.                                                      |
+| **`variantId`**   | <code>string</code>                                                                  | The identifier for the specific variant of the product (e.g. size/color).             |
+| **`imageUrl`**    | <code>string</code>                                                                  | A URL for an image of the product.                                                    |
+| **`productUrl`**  | <code>string</code>                                                                  | A URL to the product's page.                                                          |
+| **`quantity`**    | <code>number</code>                                                                  | The number of units of this product in the line item. Must be a non-negative integer. |
+| **`price`**       | <code>number</code>                                                                  | The price of a single unit of the product.                                            |
+| **`metadata`**    | <code><a href="#record">Record</a>&lt;string, string \| number \| boolean&gt;</code> | Optional key/value properties attached to this line item.                             |
+
+
+#### CheckoutStartedOptions
+
+Options for {@link BrazePlugin.logCheckoutStarted}.
+
+| Prop                | Type                                                                                 | Description                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **`checkoutId`**    | <code>string</code>                                                                  | The identifier for this checkout.                                                                                                      |
+| **`cartId`**        | <code>string</code>                                                                  | The identifier for the shopping cart that started checkout, if available.                                                              |
+| **`totalValue`**    | <code>number</code>                                                                  | The checkout's total value.                                                                                                            |
+| **`subtotalValue`** | <code>number</code>                                                                  | The checkout's subtotal value (before tax/shipping), if available.                                                                     |
+| **`tax`**           | <code>number</code>                                                                  | The tax amount applied to the checkout, if available.                                                                                  |
+| **`shipping`**      | <code>number</code>                                                                  | The shipping cost applied to the checkout, if available.                                                                               |
+| **`currency`**      | <code>string</code>                                                                  | The ISO 4217 currency code for the monetary values (e.g. `"USD"`).                                                                     |
+| **`products`**      | <code>EcommerceProduct[]</code>                                                      | The product line items being checked out. Must contain at least one item.                                                              |
+| **`source`**        | <code>string</code>                                                                  | A label identifying where checkout started in your app.                                                                                |
+| **`metadata`**      | <code><a href="#record">Record</a>&lt;string, string \| number \| boolean&gt;</code> | Optional key/value properties attached to the event. Braze recognizes the `checkout_url` metadata key for a link back to the checkout. |
+
+
+#### OrderPlacedOptions
+
+Options for {@link BrazePlugin.logOrderPlaced}.
+
+| Prop                 | Type                                                                                 | Description                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **`orderId`**        | <code>string</code>                                                                  | The identifier for the placed order.                                                                                                  |
+| **`cartId`**         | <code>string</code>                                                                  | The identifier for the shopping cart the order was placed from, if available.                                                         |
+| **`totalValue`**     | <code>number</code>                                                                  | The order's total value.                                                                                                              |
+| **`subtotalValue`**  | <code>number</code>                                                                  | The order's subtotal value (before tax/shipping), if available.                                                                       |
+| **`tax`**            | <code>number</code>                                                                  | The tax amount applied to the order, if available.                                                                                    |
+| **`shipping`**       | <code>number</code>                                                                  | The shipping cost applied to the order, if available.                                                                                 |
+| **`currency`**       | <code>string</code>                                                                  | The ISO 4217 currency code for the monetary values (e.g. `"USD"`).                                                                    |
+| **`totalDiscounts`** | <code>number</code>                                                                  | The total monetary amount discounted on this order, if any.                                                                           |
+| **`discounts`**      | <code>OrderDiscount[]</code>                                                         | The individual discounts applied to this order, if any.                                                                               |
+| **`products`**       | <code>EcommerceProduct[]</code>                                                      | The product line items in the order. Must contain at least one item.                                                                  |
+| **`source`**         | <code>string</code>                                                                  | A label identifying where the order was placed in your app.                                                                           |
+| **`metadata`**       | <code><a href="#record">Record</a>&lt;string, string \| number \| boolean&gt;</code> | Optional key/value properties attached to the event. Braze recognizes the `order_status_url` metadata key for a link to order status. |
+
+
+#### OrderDiscount
+
+A single order-level discount entry, used by
+{@link BrazePlugin.logOrderPlaced}, {@link BrazePlugin.logOrderCancelled},
+and {@link BrazePlugin.logOrderRefunded}.
+
+| Prop         | Type                | Description                                            |
+| ------------ | ------------------- | ------------------------------------------------------ |
+| **`code`**   | <code>string</code> | The discount code applied to the order.                |
+| **`amount`** | <code>number</code> | The monetary amount discounted.                        |
+| **`type`**   | <code>string</code> | The type of discount (e.g. `"percentage"`, `"fixed"`). |
+
+
+#### OrderCancelledOptions
+
+Options for {@link BrazePlugin.logOrderCancelled}.
+
+| Prop                 | Type                                                                                 | Description                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **`orderId`**        | <code>string</code>                                                                  | The identifier for the cancelled order.                                                                                               |
+| **`totalValue`**     | <code>number</code>                                                                  | The order's total value. Must be non-negative.                                                                                        |
+| **`subtotalValue`**  | <code>number</code>                                                                  | The order's subtotal value (before tax/shipping), if available.                                                                       |
+| **`tax`**            | <code>number</code>                                                                  | The tax amount applied to the order, if available.                                                                                    |
+| **`shipping`**       | <code>number</code>                                                                  | The shipping cost applied to the order, if available.                                                                                 |
+| **`currency`**       | <code>string</code>                                                                  | The ISO 4217 currency code for the monetary values (e.g. `"USD"`).                                                                    |
+| **`totalDiscounts`** | <code>number</code>                                                                  | The total monetary amount discounted on this order, if any.                                                                           |
+| **`discounts`**      | <code>OrderDiscount[]</code>                                                         | The individual discounts applied to this order, if any.                                                                               |
+| **`cancelReason`**   | <code>string</code>                                                                  | The reason the order was cancelled.                                                                                                   |
+| **`products`**       | <code>EcommerceProduct[]</code>                                                      | The product line items in the cancelled order. Must contain at least one item.                                                        |
+| **`source`**         | <code>string</code>                                                                  | A label identifying where the cancellation was initiated in your app.                                                                 |
+| **`metadata`**       | <code><a href="#record">Record</a>&lt;string, string \| number \| boolean&gt;</code> | Optional key/value properties attached to the event. Braze recognizes the `order_status_url` metadata key for a link to order status. |
+
+
+#### OrderRefundedOptions
+
+Options for {@link BrazePlugin.logOrderRefunded}.
+
+| Prop                 | Type                                                                                 | Description                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **`orderId`**        | <code>string</code>                                                                  | The identifier for the refunded order.                                                                                                |
+| **`totalValue`**     | <code>number</code>                                                                  | The refunded amount. Must be non-negative. For partial refunds, send only the amount that was refunded, not the original order total. |
+| **`currency`**       | <code>string</code>                                                                  | The ISO 4217 currency code for the monetary values (e.g. `"USD"`).                                                                    |
+| **`totalDiscounts`** | <code>number</code>                                                                  | The total monetary amount discounted on this order, if any.                                                                           |
+| **`discounts`**      | <code>OrderDiscount[]</code>                                                         | The individual discounts applied to this order, if any.                                                                               |
+| **`products`**       | <code>EcommerceProduct[]</code>                                                      | The product line items in the refunded order. Must contain at least one item.                                                         |
+| **`source`**         | <code>string</code>                                                                  | A label identifying where the refund was initiated in your app.                                                                       |
+| **`metadata`**       | <code><a href="#record">Record</a>&lt;string, string \| number \| boolean&gt;</code> | Optional key/value properties attached to the event. Braze recognizes the `order_status_url` metadata key for a link to order status. |
+
+
 ### Type Aliases
 
 
@@ -203,6 +505,13 @@ Options for {@link BrazePlugin.setCustomUserAttribute}.
 Construct a type with a set of properties K of type T
 
 <code>{ [P in K]: T; }</code>
+
+
+#### CartUpdatedAction
+
+The action that changed a shopping cart, for {@link BrazePlugin.logCartUpdated}.
+
+<code>'add' | 'remove' | 'replace'</code>
 
 </docgen-api>
 
