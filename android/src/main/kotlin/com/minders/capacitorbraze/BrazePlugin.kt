@@ -1,10 +1,41 @@
 package com.minders.capacitorbraze
 
+import com.getcapacitor.JSArray
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import java.math.BigDecimal
+
+/** Rejects [PluginCall] with `"<key>" is required` and returns null when [key] is missing/empty. */
+private fun PluginCall.requiredString(key: String): String? {
+    val value = getString(key)
+    if (value.isNullOrEmpty()) {
+        reject("\"$key\" is required")
+        return null
+    }
+    return value
+}
+
+/** Rejects [PluginCall] with `"<key>" is required` and returns null when [key] is missing. */
+private fun PluginCall.requiredDouble(key: String): Double? {
+    val value = getDouble(key)
+    if (value == null) {
+        reject("\"$key\" is required")
+        return null
+    }
+    return value
+}
+
+/** Rejects [PluginCall] with `"<key>" must contain at least one item` and returns null when [key] is missing/empty. */
+private fun PluginCall.requiredArray(key: String): JSArray? {
+    val value = getArray(key)
+    if (value == null || value.length() == 0) {
+        reject("\"$key\" must contain at least one item")
+        return null
+    }
+    return value
+}
 
 @CapacitorPlugin(name = "Braze")
 class BrazePlugin : Plugin() {
@@ -113,6 +144,176 @@ class BrazePlugin : Plugin() {
             }
         } catch (e: Exception) {
             call.reject("Failed to set custom user attribute: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun logProductViewed(call: PluginCall) {
+        val productId = call.requiredString("productId") ?: return
+        val productName = call.requiredString("productName") ?: return
+        val variantId = call.requiredString("variantId") ?: return
+        val price = call.requiredDouble("price") ?: return
+        val currency = call.requiredString("currency") ?: return
+        val source = call.requiredString("source") ?: return
+
+        try {
+            implementation.logProductViewed(
+                context,
+                productId,
+                productName,
+                variantId,
+                price,
+                currency,
+                source,
+                call.getString("imageUrl"),
+                call.getString("productUrl"),
+                call.getArray("type")?.toList(),
+                call.getObject("metadata"),
+            )
+            call.resolve()
+        } catch (e: IllegalArgumentException) {
+            call.reject(e.message ?: "Invalid product_viewed payload", e)
+        } catch (e: Exception) {
+            call.reject("Failed to log product viewed event: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun logCartUpdated(call: PluginCall) {
+        val cartId = call.requiredString("cartId") ?: return
+        val currency = call.requiredString("currency") ?: return
+        val source = call.requiredString("source") ?: return
+        val products = call.requiredArray("products") ?: return
+
+        try {
+            implementation.logCartUpdated(
+                context,
+                cartId,
+                call.getString("action"),
+                call.getDouble("totalValue"),
+                call.getDouble("subtotalValue"),
+                call.getDouble("tax"),
+                call.getDouble("shipping"),
+                currency,
+                products,
+                source,
+                call.getObject("metadata"),
+            )
+            call.resolve()
+        } catch (e: IllegalArgumentException) {
+            call.reject(e.message ?: "Invalid cart_updated payload", e)
+        } catch (e: Exception) {
+            call.reject("Failed to log cart updated event: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun logCheckoutStarted(call: PluginCall) {
+        val checkoutId = call.requiredString("checkoutId") ?: return
+        val totalValue = call.requiredDouble("totalValue") ?: return
+        val currency = call.requiredString("currency") ?: return
+        val source = call.requiredString("source") ?: return
+        val products = call.requiredArray("products") ?: return
+
+        try {
+            implementation.logCheckoutStarted(
+                context,
+                checkoutId,
+                call.getString("cartId"),
+                totalValue,
+                call.getDouble("subtotalValue"),
+                call.getDouble("tax"),
+                call.getDouble("shipping"),
+                currency,
+                products,
+                source,
+                call.getObject("metadata"),
+            )
+            call.resolve()
+        } catch (e: IllegalArgumentException) {
+            call.reject(e.message ?: "Invalid checkout_started payload", e)
+        } catch (e: Exception) {
+            call.reject("Failed to log checkout started event: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun logOrderPlaced(call: PluginCall) {
+        val orderId = call.requiredString("orderId") ?: return
+        val totalValue = call.requiredDouble("totalValue") ?: return
+        val currency = call.requiredString("currency") ?: return
+        val source = call.requiredString("source") ?: return
+        val products = call.requiredArray("products") ?: return
+
+        try {
+            implementation.logOrderPlaced(
+                context,
+                orderId,
+                call.getString("cartId"),
+                totalValue,
+                call.getDouble("subtotalValue"),
+                call.getDouble("tax"),
+                call.getDouble("shipping"),
+                currency,
+                call.getDouble("totalDiscounts"),
+                call.getArray("discounts"),
+                products,
+                source,
+                call.getObject("metadata"),
+            )
+            call.resolve()
+        } catch (e: IllegalArgumentException) {
+            call.reject(e.message ?: "Invalid order_placed payload", e)
+        } catch (e: Exception) {
+            call.reject("Failed to log order placed event: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun logOrderCancelled(call: PluginCall) {
+        try {
+            val payload = implementation.buildOrderCancelledPayload(
+                call.getString("orderId"),
+                call.getDouble("totalValue"),
+                call.getDouble("subtotalValue"),
+                call.getDouble("tax"),
+                call.getDouble("shipping"),
+                call.getString("currency"),
+                call.getDouble("totalDiscounts"),
+                call.getArray("discounts"),
+                call.getString("cancelReason"),
+                call.getArray("products"),
+                call.getString("source"),
+                call.getObject("metadata"),
+            )
+            implementation.logOrderCancelled(context, payload)
+            call.resolve()
+        } catch (e: IllegalArgumentException) {
+            call.reject(e.message ?: "Invalid order_cancelled payload", e)
+        } catch (e: Exception) {
+            call.reject("Failed to log order cancelled event: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun logOrderRefunded(call: PluginCall) {
+        try {
+            val payload = implementation.buildOrderRefundedPayload(
+                call.getString("orderId"),
+                call.getDouble("totalValue"),
+                call.getString("currency"),
+                call.getDouble("totalDiscounts"),
+                call.getArray("discounts"),
+                call.getArray("products"),
+                call.getString("source"),
+                call.getObject("metadata"),
+            )
+            implementation.logOrderRefunded(context, payload)
+            call.resolve()
+        } catch (e: IllegalArgumentException) {
+            call.reject(e.message ?: "Invalid order_refunded payload", e)
+        } catch (e: Exception) {
+            call.reject("Failed to log order refunded event: ${e.message}", e)
         }
     }
 }
