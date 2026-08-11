@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-11
+
 ### Fixed
 
 - Installing the plugin directly from git (e.g. `npm install github:productminds/capacitor-braze-plugin`) no longer produces a package missing `dist/`. A `prepare` script now runs the build automatically after a git-based install, matching the compiled output that `npm publish` already includes for registry installs.
