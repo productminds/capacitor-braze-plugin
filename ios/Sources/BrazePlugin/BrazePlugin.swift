@@ -15,6 +15,10 @@ public class BrazePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "logCustomEvent", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "logPurchase", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setCustomUserAttribute", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "unsetCustomUserAttribute", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "addToCustomUserAttributeArray", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "removeFromCustomUserAttributeArray", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setUserProfile", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "logProductViewed", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "logCartUpdated", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "logCheckoutStarted", returnType: CAPPluginReturnPromise),
@@ -96,6 +100,75 @@ public class BrazePlugin: CAPPlugin, CAPBridgedPlugin {
 
         do {
             try implementation.setCustomUserAttribute(key: key, value: value)
+            call.resolve()
+        } catch {
+            call.reject(error.localizedDescription, nil, error)
+        }
+    }
+
+    @objc func unsetCustomUserAttribute(_ call: CAPPluginCall) {
+        guard let key = call.getString("key"), !key.isEmpty else {
+            call.reject("\"key\" is required")
+            return
+        }
+
+        do {
+            try implementation.unsetCustomUserAttribute(key: key)
+            call.resolve()
+        } catch {
+            call.reject(error.localizedDescription, nil, error)
+        }
+    }
+
+    @objc func addToCustomUserAttributeArray(_ call: CAPPluginCall) {
+        guard let key = call.getString("key"), !key.isEmpty else {
+            call.reject("\"key\" is required")
+            return
+        }
+        guard let value = call.getString("value"), !value.isEmpty else {
+            call.reject("\"value\" is required")
+            return
+        }
+
+        do {
+            try implementation.addToCustomUserAttributeArray(key: key, value: value)
+            call.resolve()
+        } catch {
+            call.reject(error.localizedDescription, nil, error)
+        }
+    }
+
+    @objc func removeFromCustomUserAttributeArray(_ call: CAPPluginCall) {
+        guard let key = call.getString("key"), !key.isEmpty else {
+            call.reject("\"key\" is required")
+            return
+        }
+        guard let value = call.getString("value"), !value.isEmpty else {
+            call.reject("\"value\" is required")
+            return
+        }
+
+        do {
+            try implementation.removeFromCustomUserAttributeArray(key: key, value: value)
+            call.resolve()
+        } catch {
+            call.reject(error.localizedDescription, nil, error)
+        }
+    }
+
+    @objc func setUserProfile(_ call: CAPPluginCall) {
+        do {
+            try implementation.setUserProfile(
+                email: call.getString("email"),
+                firstName: call.getString("firstName"),
+                lastName: call.getString("lastName"),
+                country: call.getString("country"),
+                language: call.getString("language"),
+                homeCity: call.getString("homeCity"),
+                phoneNumber: call.getString("phoneNumber"),
+                gender: call.getString("gender"),
+                dateOfBirth: call.getString("dateOfBirth")
+            )
             call.resolve()
         } catch {
             call.reject(error.localizedDescription, nil, error)

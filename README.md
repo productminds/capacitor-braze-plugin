@@ -55,6 +55,46 @@ await Braze.logPurchase({
 await Braze.setCustomUserAttribute({ key: 'favorite_color', value: 'blue' });
 ```
 
+## User attributes & profile
+
+Beyond `setCustomUserAttribute`, this plugin covers the rest of Braze's standard user-attribute surface: unsetting a custom attribute, adding to/removing from an array-typed custom attribute, and setting all 9 of Braze's reserved profile fields (`email`, `firstName`, `lastName`, `country`, `language`, `homeCity`, `phoneNumber`, `gender`, `dateOfBirth`) — as opposed to custom attributes, these are fields Braze itself recognizes.
+
+```typescript
+// Remove a previously-set custom attribute.
+await Braze.unsetCustomUserAttribute({ key: 'favorite_color' });
+
+// Array-typed custom attributes: add/remove one value at a time, without
+// touching the rest of the array. Only string values are supported.
+await Braze.addToCustomUserAttributeArray({ key: 'favorite_teams', value: 'giants' });
+await Braze.removeFromCustomUserAttributeArray({ key: 'favorite_teams', value: 'giants' });
+
+// Set one or more reserved profile fields at once — only the fields you
+// pass are updated, the rest are left untouched. At least one is required.
+await Braze.setUserProfile({
+  email: 'user@example.com',
+  firstName: 'Ada',
+  lastName: 'Lovelace',
+  country: 'GB', // ISO 3166-1 alpha-2 code
+  language: 'en', // ISO 639-1 code
+  homeCity: 'London',
+  phoneNumber: '+15555550100', // E.164 format
+  gender: 'female', // see the accepted values below
+  dateOfBirth: '1990-05-21', // ISO 8601 date ("YYYY-MM-DD")
+});
+```
+
+Field formats and validation, per [Braze's standard profile fields reference](https://www.braze.com/docs/user_guide/data/activation/attributes/standard_attributes#profile-fields):
+
+* **`country`** — ISO 3166-1 alpha-2 (e.g. `"US"`, `"GB"`). Not strictly validated by this plugin.
+* **`language`** — ISO 639-1 (e.g. `"en"`, `"es"`). Not strictly validated by this plugin.
+* **`phoneNumber`** — expected in E.164 format (e.g. `"+14155552671"`). See the platform-specific validation note below.
+* **`dateOfBirth`** — an ISO 8601 date string (`"YYYY-MM-DD"`) — an invalid or malformed date is rejected before either native SDK is called.
+* **`gender`** — one of `'male' | 'female' | 'other' | 'unknown' | 'not_applicable' | 'prefer_not_to_say'`. An unrecognized value is rejected with a message listing the accepted values.
+
+  These are the concepts Braze's Android (`com.braze.enums.Gender`) and iOS (`Braze.User.Gender`) SDKs both support — the SDKs just spell the two multi-word cases differently natively (Android `NOT_APPLICABLE`/`PREFER_NOT_TO_SAY`, iOS `notApplicable`/`preferNotToSay`); this plugin's snake_case values are its own platform-neutral spelling, mapped to the right native case on each platform. **Note:** Braze's [standard attributes reference](https://www.braze.com/docs/user_guide/data/activation/attributes/standard_attributes#profile-fields) only documents 5 gender values (`M`/`F`/`O`/`N`/`P`) — `unknown` has no corresponding letter code there. Both native SDKs define and accept `unknown` regardless (confirmed directly against each SDK's compiled interface), so it's included here, but unlike the other 5 it isn't confirmed as a value Braze's dashboard/backend surfaces the same way.
+
+**`phoneNumber` validation differs by platform.** Braze validates the phone number format natively. On **Android**, `BrazeUser.setPhoneNumber` returns a Boolean success flag, so this plugin detects a rejected number and rejects the `setUserProfile` call, naming the field(s) Braze rejected. On **iOS**, BrazeKit's current (non-deprecated) `Braze.User.set(phoneNumber:)` returns `Void` — there is no native signal available to this plugin when Braze rejects a malformed number, so a `setUserProfile` call with an invalid `phoneNumber` still resolves successfully on iOS even though Braze silently drops the value.
+
 ## eCommerce events
 
 This plugin exposes Braze's [6 recommended eCommerce events](https://www.braze.com/docs/developer_guide/analytics/ecommerce) — `product_viewed`, `cart_updated`, `checkout_started`, `order_placed`, `order_cancelled`, `order_refunded` — as 6 methods with a uniform, fully-typed API: every method takes a single typed `options` object and returns `Promise<void>`, the same shape as every other method in this plugin.
@@ -99,6 +139,10 @@ See the [Braze eCommerce events guide](https://www.braze.com/docs/developer_guid
 * [`logCustomEvent(...)`](#logcustomevent)
 * [`logPurchase(...)`](#logpurchase)
 * [`setCustomUserAttribute(...)`](#setcustomuserattribute)
+* [`unsetCustomUserAttribute(...)`](#unsetcustomuserattribute)
+* [`addToCustomUserAttributeArray(...)`](#addtocustomuserattributearray)
+* [`removeFromCustomUserAttributeArray(...)`](#removefromcustomuserattributearray)
+* [`setUserProfile(...)`](#setuserprofile)
 * [`logProductViewed(...)`](#logproductviewed)
 * [`logCartUpdated(...)`](#logcartupdated)
 * [`logCheckoutStarted(...)`](#logcheckoutstarted)
@@ -188,6 +232,78 @@ Sets a custom attribute on the current user's Braze profile.
 | Param         | Type                                                                                    | Description                  |
 | ------------- | --------------------------------------------------------------------------------------- | ---------------------------- |
 | **`options`** | <code><a href="#setcustomuserattributeoptions">SetCustomUserAttributeOptions</a></code> | The attribute key and value. |
+
+--------------------
+
+
+### unsetCustomUserAttribute(...)
+
+```typescript
+unsetCustomUserAttribute(options: UnsetCustomUserAttributeOptions) => Promise<void>
+```
+
+Removes a custom attribute from the current user's Braze profile.
+
+| Param         | Type                                                                                        | Description                 |
+| ------------- | ------------------------------------------------------------------------------------------- | --------------------------- |
+| **`options`** | <code><a href="#unsetcustomuserattributeoptions">UnsetCustomUserAttributeOptions</a></code> | The attribute key to unset. |
+
+--------------------
+
+
+### addToCustomUserAttributeArray(...)
+
+```typescript
+addToCustomUserAttributeArray(options: ModifyCustomUserAttributeArrayOptions) => Promise<void>
+```
+
+Adds a value to an array-typed custom attribute on the current user's
+Braze profile, without affecting other values already in the array.
+
+| Param         | Type                                                                                                    | Description                             |
+| ------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| **`options`** | <code><a href="#modifycustomuserattributearrayoptions">ModifyCustomUserAttributeArrayOptions</a></code> | The attribute key and the value to add. |
+
+--------------------
+
+
+### removeFromCustomUserAttributeArray(...)
+
+```typescript
+removeFromCustomUserAttributeArray(options: ModifyCustomUserAttributeArrayOptions) => Promise<void>
+```
+
+Removes a value from an array-typed custom attribute on the current
+user's Braze profile, without affecting other values already in the
+array.
+
+| Param         | Type                                                                                                    | Description                                |
+| ------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| **`options`** | <code><a href="#modifycustomuserattributearrayoptions">ModifyCustomUserAttributeArrayOptions</a></code> | The attribute key and the value to remove. |
+
+--------------------
+
+
+### setUserProfile(...)
+
+```typescript
+setUserProfile(options: SetUserProfileOptions) => Promise<void>
+```
+
+Sets one or more of the current user's reserved Braze profile fields
+(as opposed to custom attributes). Only the fields present in
+`options` are updated — fields left out are not touched.
+
+On Android, every field is validated natively by the Braze SDK itself
+(e.g. `phoneNumber` format) in addition to this plugin's own
+non-blank/format checks, and a field Braze rejects natively causes this
+method to reject too. On iOS, BrazeKit has no equivalent native
+validation feedback for these setters, so this method only guarantees
+this plugin's own checks passed — see the README for details.
+
+| Param         | Type                                                                    | Description                                              |
+| ------------- | ----------------------------------------------------------------------- | -------------------------------------------------------- |
+| **`options`** | <code><a href="#setuserprofileoptions">SetUserProfileOptions</a></code> | The profile fields to set. At least one must be present. |
 
 --------------------
 
@@ -349,10 +465,49 @@ Options for {@link BrazePlugin.logPurchase}.
 
 Options for {@link BrazePlugin.setCustomUserAttribute}.
 
-| Prop        | Type                                     | Description                                                                                                                                             |
-| ----------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`key`**   | <code>string</code>                      | The name of the custom attribute, as it will appear in the Braze dashboard.                                                                             |
-| **`value`** | <code>string \| number \| boolean</code> | The value to set for the attribute. Arrays and objects are not supported by this method; use the native SDK directly for array-typed custom attributes. |
+| Prop        | Type                                     | Description                                                                                                                                                                                                                                |
+| ----------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`key`**   | <code>string</code>                      | The name of the custom attribute, as it will appear in the Braze dashboard.                                                                                                                                                                |
+| **`value`** | <code>string \| number \| boolean</code> | The value to set for the attribute. Arrays and objects are not supported by this method; use {@link BrazePlugin.addToCustomUserAttributeArray} / {@link BrazePlugin.removeFromCustomUserAttributeArray} for array-typed custom attributes. |
+
+
+#### UnsetCustomUserAttributeOptions
+
+Options for {@link BrazePlugin.unsetCustomUserAttribute}.
+
+| Prop      | Type                | Description                                |
+| --------- | ------------------- | ------------------------------------------ |
+| **`key`** | <code>string</code> | The name of the custom attribute to unset. |
+
+
+#### ModifyCustomUserAttributeArrayOptions
+
+Options for {@link BrazePlugin.addToCustomUserAttributeArray} and
+{@link BrazePlugin.removeFromCustomUserAttributeArray}.
+
+| Prop        | Type                | Description                                                                                                 |
+| ----------- | ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **`key`**   | <code>string</code> | The name of the array-typed custom attribute.                                                               |
+| **`value`** | <code>string</code> | The string value to add to or remove from the array. Only string array values are supported by this method. |
+
+
+#### SetUserProfileOptions
+
+Options for {@link BrazePlugin.setUserProfile}.
+
+At least one field must be present.
+
+| Prop              | Type                                              | Description                                                                                                                                                                                                                                                         |
+| ----------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`email`**       | <code>string</code>                               | The user's email address.                                                                                                                                                                                                                                           |
+| **`firstName`**   | <code>string</code>                               | The user's first name.                                                                                                                                                                                                                                              |
+| **`lastName`**    | <code>string</code>                               | The user's last name.                                                                                                                                                                                                                                               |
+| **`country`**     | <code>string</code>                               | The user's country, as an ISO 3166-1 alpha-2 code (e.g. `"US"`, `"GB"`). Not strictly validated by this plugin — passed through to the native SDK as-is.                                                                                                            |
+| **`language`**    | <code>string</code>                               | The user's language, as an ISO 639-1 code (e.g. `"en"`, `"es"`). Not strictly validated by this plugin — passed through to the native SDK as-is.                                                                                                                    |
+| **`homeCity`**    | <code>string</code>                               | The user's home city.                                                                                                                                                                                                                                               |
+| **`phoneNumber`** | <code>string</code>                               | The user's phone number, expected in E.164 format (e.g. `"+14155552671"`). Braze applies its own native-side format validation and may silently reject a malformed number — see the README for how this plugin surfaces (or, on iOS, can't surface) that rejection. |
+| **`gender`**      | <code><a href="#usergender">UserGender</a></code> | The user's gender.                                                                                                                                                                                                                                                  |
+| **`dateOfBirth`** | <code>string</code>                               | The user's date of birth, as an ISO 8601 date string (`"YYYY-MM-DD"`), e.g. `"1990-05-21"`.                                                                                                                                                                         |
 
 
 #### ProductViewedOptions
@@ -505,6 +660,28 @@ Options for {@link BrazePlugin.logOrderRefunded}.
 Construct a type with a set of properties K of type T
 
 <code>{ [P in K]: T; }</code>
+
+
+#### UserGender
+
+The current user's gender, for {@link <a href="#setuserprofileoptions">SetUserProfileOptions.gender</a>}.
+
+This is the intersection of the values Braze's Android (`com.braze.enums.Gender`)
+and iOS (`Braze.User.Gender`) SDKs support — both SDKs recognize the same
+6 concepts, just under different native identifiers (e.g. Android's
+`NOT_APPLICABLE` / iOS's `notApplicable`); this plugin maps this single
+snake_case value to the right native enum case on each platform, so no
+value here is platform-specific.
+
+Note: Braze's public standard-attributes reference
+(https://www.braze.com/docs/user_guide/data/activation/attributes/standard_attributes#profile-fields)
+only documents 5 gender values (`M`/`F`/`O`/`N`/`P`) — `unknown` has no
+corresponding letter code there. Both native SDKs define and accept it
+regardless (confirmed directly against each SDK's compiled interface),
+so it's included here, but it isn't confirmed as a value Braze's
+dashboard/backend surfaces the same way as the other 5.
+
+<code>'male' | 'female' | 'other' | 'unknown' | 'not_applicable' | 'prefer_not_to_say'</code>
 
 
 #### CartUpdatedAction

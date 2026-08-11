@@ -7,11 +7,14 @@ import type {
   CheckoutStartedOptions,
   LogCustomEventOptions,
   LogPurchaseOptions,
+  ModifyCustomUserAttributeArrayOptions,
   OrderCancelledOptions,
   OrderPlacedOptions,
   OrderRefundedOptions,
   ProductViewedOptions,
   SetCustomUserAttributeOptions,
+  SetUserProfileOptions,
+  UnsetCustomUserAttributeOptions,
 } from './definitions';
 
 const WEB_NOT_SUPPORTED_MESSAGE =
@@ -38,6 +41,22 @@ export class BrazeWeb extends WebPlugin implements BrazePlugin {
   }
 
   async setCustomUserAttribute(_options: SetCustomUserAttributeOptions): Promise<void> {
+    console.warn(WEB_NOT_SUPPORTED_MESSAGE);
+  }
+
+  async unsetCustomUserAttribute(_options: UnsetCustomUserAttributeOptions): Promise<void> {
+    console.warn(WEB_NOT_SUPPORTED_MESSAGE);
+  }
+
+  async addToCustomUserAttributeArray(_options: ModifyCustomUserAttributeArrayOptions): Promise<void> {
+    console.warn(WEB_NOT_SUPPORTED_MESSAGE);
+  }
+
+  async removeFromCustomUserAttributeArray(_options: ModifyCustomUserAttributeArrayOptions): Promise<void> {
+    console.warn(WEB_NOT_SUPPORTED_MESSAGE);
+  }
+
+  async setUserProfile(_options: SetUserProfileOptions): Promise<void> {
     console.warn(WEB_NOT_SUPPORTED_MESSAGE);
   }
 

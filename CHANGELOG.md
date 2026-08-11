@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-11
+
+### Added
+
+- `unsetCustomUserAttribute`, `addToCustomUserAttributeArray`, `removeFromCustomUserAttributeArray`, and `setUserProfile` methods, rounding out user-attribute coverage: unsetting a custom attribute, modifying array-typed custom attributes, and setting all 9 of Braze's reserved profile fields (`email`, `firstName`, `lastName`, `country`, `language`, `homeCity`, `phoneNumber`, `gender`, `dateOfBirth`).
+- `UnsetCustomUserAttributeOptions`, `ModifyCustomUserAttributeArrayOptions`, `SetUserProfileOptions`, and `UserGender` types.
+
 ## [0.2.1] - 2026-08-11
 
 ### Fixed

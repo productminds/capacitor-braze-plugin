@@ -45,6 +45,87 @@ class BrazeTests: XCTestCase {
         }
     }
 
+    // `validateUserProfileFields` is `setUserProfile`'s only validation —
+    // BrazeKit's reserved-field setters (`set(email:)`, `set(firstName:)`,
+    // `set(lastName:)`, etc.) accept any string, so this plugin must reject
+    // an empty payload itself. It's pure (never touches BrazeBridge.sharedInstance)
+    // so a payload with no fields is provably rejected before any native
+    // setter is ever reached, independent of whether BrazeKit is configured.
+    func testSetUserProfileRejectsWhenNoFieldsPresent() {
+        let implementation = BrazeBridge()
+
+        XCTAssertThrowsError(
+            try implementation.validateUserProfileFields(
+                email: nil,
+                firstName: nil,
+                lastName: nil,
+                country: nil,
+                language: nil,
+                homeCity: nil,
+                phoneNumber: nil,
+                gender: nil,
+                dateOfBirth: nil
+            )
+        ) { error in
+            guard case .noFieldsProvided = error as? UserProfileValidationError else {
+                return XCTFail("Expected UserProfileValidationError.noFieldsProvided, got \(error)")
+            }
+        }
+    }
+
+    // `dateOfBirth` must be parsed by this plugin (BrazeKit's `set(dateOfBirth:)`
+    // takes a `Date`, not a string), so a malformed ISO 8601 date must be
+    // rejected here, before BrazeKit ever sees it.
+    func testSetUserProfileRejectsInvalidDateOfBirthFormat() {
+        let implementation = BrazeBridge()
+
+        XCTAssertThrowsError(
+            try implementation.validateUserProfileFields(
+                email: nil,
+                firstName: nil,
+                lastName: nil,
+                country: nil,
+                language: nil,
+                homeCity: nil,
+                phoneNumber: nil,
+                gender: nil,
+                dateOfBirth: "13/45/2020"
+            )
+        ) { error in
+            guard case .invalidDateOfBirth(let value) = error as? UserProfileValidationError else {
+                return XCTFail("Expected UserProfileValidationError.invalidDateOfBirth, got \(error)")
+            }
+            XCTAssertEqual(value, "13/45/2020")
+        }
+    }
+
+    // `gender` must map to a real `Braze.User.Gender` case; an unrecognized
+    // value must be rejected with a message listing the accepted values,
+    // not silently dropped or passed through to BrazeKit.
+    func testSetUserProfileRejectsUnrecognizedGender() {
+        let implementation = BrazeBridge()
+
+        XCTAssertThrowsError(
+            try implementation.validateUserProfileFields(
+                email: nil,
+                firstName: nil,
+                lastName: nil,
+                country: nil,
+                language: nil,
+                homeCity: nil,
+                phoneNumber: nil,
+                gender: "nonbinary",
+                dateOfBirth: nil
+            )
+        ) { error in
+            guard case .invalidGender(let value) = error as? UserProfileValidationError else {
+                return XCTFail("Expected UserProfileValidationError.invalidGender, got \(error)")
+            }
+            XCTAssertEqual(value, "nonbinary")
+            XCTAssertTrue(error.localizedDescription.contains("prefer_not_to_say"))
+        }
+    }
+
     func testLogOrderRefundedRejectsWhenProductsMissing() {
         let implementation = BrazeBridge()
 
