@@ -496,10 +496,118 @@ export interface SetCustomUserAttributeOptions {
 
   /**
    * The value to set for the attribute. Arrays and objects are not
-   * supported by this method; use the native SDK directly for array-typed
+   * supported by this method; use {@link BrazePlugin.addToCustomUserAttributeArray}
+   * / {@link BrazePlugin.removeFromCustomUserAttributeArray} for array-typed
    * custom attributes.
    */
   value: string | number | boolean;
+}
+
+/**
+ * Options for {@link BrazePlugin.unsetCustomUserAttribute}.
+ */
+export interface UnsetCustomUserAttributeOptions {
+  /**
+   * The name of the custom attribute to unset.
+   */
+  key: string;
+}
+
+/**
+ * Options for {@link BrazePlugin.addToCustomUserAttributeArray} and
+ * {@link BrazePlugin.removeFromCustomUserAttributeArray}.
+ */
+export interface ModifyCustomUserAttributeArrayOptions {
+  /**
+   * The name of the array-typed custom attribute.
+   */
+  key: string;
+
+  /**
+   * The string value to add to or remove from the array. Only string array
+   * values are supported by this method.
+   */
+  value: string;
+}
+
+/**
+ * The current user's gender, for {@link SetUserProfileOptions.gender}.
+ *
+ * This is the intersection of the values Braze's Android (`com.braze.enums.Gender`)
+ * and iOS (`Braze.User.Gender`) SDKs support — both SDKs recognize the same
+ * 6 concepts, just under different native identifiers (e.g. Android's
+ * `NOT_APPLICABLE` / iOS's `notApplicable`); this plugin maps this single
+ * snake_case value to the right native enum case on each platform, so no
+ * value here is platform-specific.
+ *
+ * Note: Braze's public standard-attributes reference
+ * (https://www.braze.com/docs/user_guide/data/activation/attributes/standard_attributes#profile-fields)
+ * only documents 5 gender values (`M`/`F`/`O`/`N`/`P`) — `unknown` has no
+ * corresponding letter code there. Both native SDKs define and accept it
+ * regardless (confirmed directly against each SDK's compiled interface),
+ * so it's included here, but it isn't confirmed as a value Braze's
+ * dashboard/backend surfaces the same way as the other 5.
+ */
+export type UserGender = 'male' | 'female' | 'other' | 'unknown' | 'not_applicable' | 'prefer_not_to_say';
+
+/**
+ * Options for {@link BrazePlugin.setUserProfile}.
+ *
+ * At least one field must be present.
+ */
+export interface SetUserProfileOptions {
+  /**
+   * The user's email address.
+   */
+  email?: string;
+
+  /**
+   * The user's first name.
+   */
+  firstName?: string;
+
+  /**
+   * The user's last name.
+   */
+  lastName?: string;
+
+  /**
+   * The user's country, as an ISO 3166-1 alpha-2 code (e.g. `"US"`, `"GB"`).
+   * Not strictly validated by this plugin — passed through to the native
+   * SDK as-is.
+   */
+  country?: string;
+
+  /**
+   * The user's language, as an ISO 639-1 code (e.g. `"en"`, `"es"`). Not
+   * strictly validated by this plugin — passed through to the native SDK
+   * as-is.
+   */
+  language?: string;
+
+  /**
+   * The user's home city.
+   */
+  homeCity?: string;
+
+  /**
+   * The user's phone number, expected in E.164 format (e.g. `"+14155552671"`).
+   * Braze applies its own native-side format validation and may silently
+   * reject a malformed number — see the README for how this plugin
+   * surfaces (or, on iOS, can't surface) that rejection.
+   */
+  phoneNumber?: string;
+
+  /**
+   * The user's gender.
+   */
+  gender?: UserGender;
+
+  /**
+   * The user's date of birth, as an ISO 8601 date string (`"YYYY-MM-DD"`),
+   * e.g. `"1990-05-21"`.
+   */
+  dateOfBirth?: string;
 }
 
 /**
@@ -581,6 +689,73 @@ export interface BrazePlugin {
    * await Braze.setCustomUserAttribute({ key: 'favorite_color', value: 'blue' });
    */
   setCustomUserAttribute(options: SetCustomUserAttributeOptions): Promise<void>;
+
+  /**
+   * Removes a custom attribute from the current user's Braze profile.
+   *
+   * @param options The attribute key to unset.
+   * @throws If `key` is empty, or if the native Braze SDK has not been
+   * configured natively yet.
+   *
+   * @example
+   * await Braze.unsetCustomUserAttribute({ key: 'favorite_color' });
+   */
+  unsetCustomUserAttribute(options: UnsetCustomUserAttributeOptions): Promise<void>;
+
+  /**
+   * Adds a value to an array-typed custom attribute on the current user's
+   * Braze profile, without affecting other values already in the array.
+   *
+   * @param options The attribute key and the value to add.
+   * @throws If `key` or `value` is empty, or if the native Braze SDK has
+   * not been configured natively yet.
+   *
+   * @example
+   * await Braze.addToCustomUserAttributeArray({ key: 'favorite_teams', value: 'giants' });
+   */
+  addToCustomUserAttributeArray(options: ModifyCustomUserAttributeArrayOptions): Promise<void>;
+
+  /**
+   * Removes a value from an array-typed custom attribute on the current
+   * user's Braze profile, without affecting other values already in the
+   * array.
+   *
+   * @param options The attribute key and the value to remove.
+   * @throws If `key` or `value` is empty, or if the native Braze SDK has
+   * not been configured natively yet.
+   *
+   * @example
+   * await Braze.removeFromCustomUserAttributeArray({ key: 'favorite_teams', value: 'giants' });
+   */
+  removeFromCustomUserAttributeArray(options: ModifyCustomUserAttributeArrayOptions): Promise<void>;
+
+  /**
+   * Sets one or more of the current user's reserved Braze profile fields
+   * (as opposed to custom attributes). Only the fields present in
+   * `options` are updated — fields left out are not touched.
+   *
+   * On Android, every field is validated natively by the Braze SDK itself
+   * (e.g. `phoneNumber` format) in addition to this plugin's own
+   * non-blank/format checks, and a field Braze rejects natively causes this
+   * method to reject too. On iOS, BrazeKit has no equivalent native
+   * validation feedback for these setters, so this method only guarantees
+   * this plugin's own checks passed — see the README for details.
+   *
+   * @param options The profile fields to set. At least one must be present.
+   * @throws If no field is present, if a present field is invalid (empty,
+   * an unrecognized `gender`, a malformed `dateOfBirth`), if Braze natively
+   * rejected a field (Android only), or if the native Braze SDK has not
+   * been configured natively yet.
+   *
+   * @example
+   * await Braze.setUserProfile({
+   *   email: 'user@example.com',
+   *   firstName: 'Ada',
+   *   gender: 'female',
+   *   dateOfBirth: '1990-05-21',
+   * });
+   */
+  setUserProfile(options: SetUserProfileOptions): Promise<void>;
 
   /**
    * Logs Braze's recommended `product_viewed` eCommerce event.
