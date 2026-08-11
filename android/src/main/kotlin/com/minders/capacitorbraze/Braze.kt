@@ -2,6 +2,8 @@ package com.minders.capacitorbraze
 
 import android.content.Context
 import com.braze.Braze as BrazeSdk
+import com.braze.enums.Gender
+import com.braze.enums.Month
 import com.braze.models.outgoing.BrazeProperties
 import com.braze.models.recommended.ecommerce.CartUpdatedAction
 import com.braze.models.recommended.ecommerce.CartUpdatedEvent
@@ -12,6 +14,7 @@ import com.braze.models.recommended.ecommerce.ProductViewedEvent
 import org.json.JSONArray
 import org.json.JSONObject
 import java.math.BigDecimal
+import java.util.GregorianCalendar
 
 /**
  * Thin wrapper around the Braze Android SDK singleton. Kept separate from
@@ -71,6 +74,109 @@ class Braze {
                 else -> false
             }
             onComplete(success)
+        }
+    }
+
+    fun unsetCustomUserAttribute(context: Context, key: String, onComplete: (Boolean) -> Unit) {
+        requireConfiguredInstance(context).getCurrentUser { user ->
+            onComplete(user.unsetCustomUserAttribute(key))
+        }
+    }
+
+    fun addToCustomUserAttributeArray(context: Context, key: String, value: String, onComplete: (Boolean) -> Unit) {
+        requireConfiguredInstance(context).getCurrentUser { user ->
+            onComplete(user.addToCustomAttributeArray(key, value))
+        }
+    }
+
+    fun removeFromCustomUserAttributeArray(context: Context, key: String, value: String, onComplete: (Boolean) -> Unit) {
+        requireConfiguredInstance(context).getCurrentUser { user ->
+            onComplete(user.removeFromCustomAttributeArray(key, value))
+        }
+    }
+
+    /**
+     * Validates a {@link setUserProfile} payload: at least one field must be
+     * present, and any present field must be individually valid (non-blank
+     * strings; `gender` must be a recognized value; `dateOfBirth` must be a
+     * valid ISO 8601 date). Pure (no [Context], no SDK calls) so an invalid
+     * payload is rejected before any native user setter is ever reached,
+     * and so it can be unit tested directly.
+     */
+    fun validateUserProfileFields(
+        email: String?,
+        firstName: String?,
+        lastName: String?,
+        country: String?,
+        language: String?,
+        homeCity: String?,
+        phoneNumber: String?,
+        gender: String?,
+        dateOfBirth: String?,
+    ) {
+        if (
+            email == null && firstName == null && lastName == null && country == null &&
+            language == null && homeCity == null && phoneNumber == null && gender == null &&
+            dateOfBirth == null
+        ) {
+            throw IllegalArgumentException(
+                "At least one of \"email\", \"firstName\", \"lastName\", \"country\", " +
+                    "\"language\", \"homeCity\", \"phoneNumber\", \"gender\", or \"dateOfBirth\" is required.",
+            )
+        }
+        email?.let { requireNonBlank(it, "email") }
+        firstName?.let { requireNonBlank(it, "firstName") }
+        lastName?.let { requireNonBlank(it, "lastName") }
+        country?.let { requireNonBlank(it, "country") }
+        language?.let { requireNonBlank(it, "language") }
+        homeCity?.let { requireNonBlank(it, "homeCity") }
+        phoneNumber?.let { requireNonBlank(it, "phoneNumber") }
+        gender?.let { parseGender(it) }
+        dateOfBirth?.let { parseDateOfBirth(it) }
+    }
+
+    /**
+     * Sets one or more reserved profile fields. Unlike custom attributes,
+     * every native setter here (`setEmail`, `setFirstName`, ..., including
+     * `setPhoneNumber`) returns a Boolean success flag — Braze applies its
+     * own native-side validation (e.g. phone number format) independently
+     * of this plugin's own non-blank checks above, and a value it rejects
+     * comes back as `false` rather than an exception. [onComplete] receives
+     * the names of any fields that failed to set, so the plugin layer can
+     * reject instead of silently reporting success.
+     */
+    fun setUserProfile(
+        context: Context,
+        email: String?,
+        firstName: String?,
+        lastName: String?,
+        country: String?,
+        language: String?,
+        homeCity: String?,
+        phoneNumber: String?,
+        gender: String?,
+        dateOfBirth: String?,
+        onComplete: (List<String>) -> Unit,
+    ) {
+        validateUserProfileFields(email, firstName, lastName, country, language, homeCity, phoneNumber, gender, dateOfBirth)
+        val parsedGender = gender?.let { parseGender(it) }
+        val parsedDateOfBirth = dateOfBirth?.let { parseDateOfBirth(it) }
+
+        requireConfiguredInstance(context).getCurrentUser { user ->
+            val failedFields = mutableListOf<String>()
+            fun track(field: String, success: Boolean) {
+                if (!success) failedFields += field
+            }
+            email?.let { track("email", user.setEmail(it)) }
+            firstName?.let { track("firstName", user.setFirstName(it)) }
+            lastName?.let { track("lastName", user.setLastName(it)) }
+            country?.let { track("country", user.setCountry(it)) }
+            language?.let { track("language", user.setLanguage(it)) }
+            homeCity?.let { track("homeCity", user.setHomeCity(it)) }
+            phoneNumber?.let { track("phoneNumber", user.setPhoneNumber(it)) }
+            parsedGender?.let { track("gender", user.setGender(it)) }
+            parsedDateOfBirth?.let { (year, month, day) -> track("dateOfBirth", user.setDateOfBirth(year, month, day)) }
+            onComplete(failedFields)
         }
     }
 
@@ -368,8 +474,68 @@ class Braze {
         return currency.uppercase()
     }
 
+    /**
+     * Maps this plugin's own `gender` string values (documented in the
+     * README, shared with the iOS implementation) to the real
+     * [com.braze.enums.Gender] enum. Not delegated to
+     * [com.braze.enums.Gender.Companion.getGender], which parses Braze's
+     * internal single-letter wire codes ("m", "f", ...), not the readable
+     * values this plugin's TypeScript API exposes.
+     */
+    private fun parseGender(value: String): Gender {
+        return VALID_GENDERS[value] ?: throw IllegalArgumentException(
+            "\"gender\" must be one of: ${VALID_GENDERS.keys.joinToString(", ") { "\"$it\"" }}. Received: \"$value\"",
+        )
+    }
+
+    /**
+     * Parses a `"YYYY-MM-DD"` string into the (year, [Month], day) triple
+     * [com.braze.BrazeUser.setDateOfBirth] takes. [GregorianCalendar] with
+     * `isLenient = false` is used (instead of `java.time`, which needs API
+     * 26+ or desugaring — this plugin supports minSdk 24) to reject
+     * calendar-invalid dates the regex alone can't catch, e.g. "2020-02-30".
+     */
+    private fun parseDateOfBirth(value: String): Triple<Int, Month, Int> {
+        val match = ISO_DATE_FORMAT.matchEntire(value) ?: throw invalidDateOfBirth(value)
+        val (yearStr, monthStr, dayStr) = match.destructured
+        val year = yearStr.toInt()
+        val isoMonth = monthStr.toInt()
+        val day = dayStr.toInt()
+
+        try {
+            val calendar = GregorianCalendar()
+            calendar.isLenient = false
+            calendar.clear()
+            calendar.set(year, isoMonth - 1, day)
+            calendar.timeInMillis
+        } catch (e: IllegalArgumentException) {
+            throw invalidDateOfBirth(value)
+        }
+
+        // Month.value is 0-indexed (JANUARY = 0), matching java.util.Calendar's
+        // MONTH field — NOT the 1-indexed month in the "YYYY-MM-DD" wire format.
+        // getMonth returns null for an out-of-range index, which shouldn't be
+        // reachable here (the non-lenient Calendar above already rejects a
+        // month outside 0-11), but is handled rather than force-unwrapped.
+        val month = Month.getMonth(isoMonth - 1) ?: throw invalidDateOfBirth(value)
+        return Triple(year, month, day)
+    }
+
+    private fun invalidDateOfBirth(value: String) = IllegalArgumentException(
+        "\"dateOfBirth\" must be a valid ISO 8601 date (\"YYYY-MM-DD\"). Received: \"$value\"",
+    )
+
     companion object {
         private const val MAX_STRING_LENGTH = 255
         private val ISO_4217_FORMAT = Regex("^[A-Za-z]{3}$")
+        private val ISO_DATE_FORMAT = Regex("^(\\d{4})-(\\d{2})-(\\d{2})$")
+        private val VALID_GENDERS = mapOf(
+            "male" to Gender.MALE,
+            "female" to Gender.FEMALE,
+            "other" to Gender.OTHER,
+            "unknown" to Gender.UNKNOWN,
+            "not_applicable" to Gender.NOT_APPLICABLE,
+            "prefer_not_to_say" to Gender.PREFER_NOT_TO_SAY,
+        )
     }
 }

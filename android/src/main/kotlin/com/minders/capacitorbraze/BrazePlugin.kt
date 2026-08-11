@@ -148,6 +148,87 @@ class BrazePlugin : Plugin() {
     }
 
     @PluginMethod
+    fun unsetCustomUserAttribute(call: PluginCall) {
+        val key = call.requiredString("key") ?: return
+
+        try {
+            implementation.unsetCustomUserAttribute(context, key) { success ->
+                if (success) {
+                    call.resolve()
+                } else {
+                    call.reject("Failed to unset custom user attribute")
+                }
+            }
+        } catch (e: Exception) {
+            call.reject("Failed to unset custom user attribute: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun addToCustomUserAttributeArray(call: PluginCall) {
+        val key = call.requiredString("key") ?: return
+        val value = call.requiredString("value") ?: return
+
+        try {
+            implementation.addToCustomUserAttributeArray(context, key, value) { success ->
+                if (success) {
+                    call.resolve()
+                } else {
+                    call.reject("Failed to add to custom user attribute array")
+                }
+            }
+        } catch (e: Exception) {
+            call.reject("Failed to add to custom user attribute array: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun removeFromCustomUserAttributeArray(call: PluginCall) {
+        val key = call.requiredString("key") ?: return
+        val value = call.requiredString("value") ?: return
+
+        try {
+            implementation.removeFromCustomUserAttributeArray(context, key, value) { success ->
+                if (success) {
+                    call.resolve()
+                } else {
+                    call.reject("Failed to remove from custom user attribute array")
+                }
+            }
+        } catch (e: Exception) {
+            call.reject("Failed to remove from custom user attribute array: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun setUserProfile(call: PluginCall) {
+        try {
+            implementation.setUserProfile(
+                context,
+                call.getString("email"),
+                call.getString("firstName"),
+                call.getString("lastName"),
+                call.getString("country"),
+                call.getString("language"),
+                call.getString("homeCity"),
+                call.getString("phoneNumber"),
+                call.getString("gender"),
+                call.getString("dateOfBirth"),
+            ) { failedFields ->
+                if (failedFields.isEmpty()) {
+                    call.resolve()
+                } else {
+                    call.reject("Braze rejected the following field(s): ${failedFields.joinToString(", ")}")
+                }
+            }
+        } catch (e: IllegalArgumentException) {
+            call.reject(e.message ?: "Invalid user profile payload", e)
+        } catch (e: Exception) {
+            call.reject("Failed to set user profile: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
     fun logProductViewed(call: PluginCall) {
         val productId = call.requiredString("productId") ?: return
         val productName = call.requiredString("productName") ?: return
