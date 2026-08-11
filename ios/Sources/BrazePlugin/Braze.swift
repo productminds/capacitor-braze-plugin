@@ -47,6 +47,35 @@ enum EcommerceValidationError: LocalizedError {
     }
 }
 
+/// Validation errors for {@link BrazeBridge.setUserProfile}. BrazeKit's
+/// reserved profile field setters accept any string with no format
+/// validation of their own client-side (unlike Android's `BrazeUser`, whose
+/// setters return a Boolean success flag — see the comment on
+/// `BrazeBridge.setUserProfile` for that platform difference), so this
+/// plugin enforces "at least one field present, and non-blank/well-formed
+/// if present" itself.
+enum UserProfileValidationError: LocalizedError {
+    case noFieldsProvided
+    case invalidString(field: String)
+    case invalidGender(value: String)
+    case invalidDateOfBirth(value: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .noFieldsProvided:
+            return "At least one of \"email\", \"firstName\", \"lastName\", \"country\", " +
+                "\"language\", \"homeCity\", \"phoneNumber\", \"gender\", or \"dateOfBirth\" is required."
+        case .invalidString(let field):
+            return "\"\(field)\" must be non-blank and at most 255 characters."
+        case .invalidGender(let value):
+            return "\"gender\" must be one of: \"male\", \"female\", \"other\", \"unknown\", " +
+                "\"not_applicable\", \"prefer_not_to_say\". Received: \"\(value)\""
+        case .invalidDateOfBirth(let value):
+            return "\"dateOfBirth\" must be a valid ISO 8601 date (\"YYYY-MM-DD\"). Received: \"\(value)\""
+        }
+    }
+}
+
 /// Gives `Braze.Ecommerce.ValidationError` (thrown natively by the typed
 /// eCommerce event initializers) a readable message, since it doesn't
 /// conform to `LocalizedError` itself and `error.localizedDescription`
@@ -158,6 +187,146 @@ public final class BrazeBridge {
         default:
             throw BrazeWrapperError.unsupportedAttributeValue
         }
+    }
+
+    func unsetCustomUserAttribute(key: String) throws {
+        try requireInstance().user.unsetCustomAttribute(key: key)
+    }
+
+    // BrazeKit's unqualified `addToCustomAttributeArray`/`removeFromCustomAttributeArray`
+    // overloads are deprecated (renamed to the `*StringArray` variants below)
+    // — using them would emit deprecation warnings on every build.
+    func addToCustomUserAttributeArray(key: String, value: String) throws {
+        try requireInstance().user.addToCustomAttributeStringArray(key: key, value: value)
+    }
+
+    func removeFromCustomUserAttributeArray(key: String, value: String) throws {
+        try requireInstance().user.removeFromCustomAttributeStringArray(key: key, value: value)
+    }
+
+    /// Validates a `setUserProfile` payload: at least one field must be
+    /// present, and any present field must be individually valid (non-blank
+    /// strings; `gender` must be a recognized value; `dateOfBirth` must be a
+    /// valid ISO 8601 date). Pure (no BrazeKit instance involved) so an
+    /// invalid payload is rejected before any native user setter is ever
+    /// reached, and so it can be unit tested directly.
+    func validateUserProfileFields(
+        email: String?,
+        firstName: String?,
+        lastName: String?,
+        country: String?,
+        language: String?,
+        homeCity: String?,
+        phoneNumber: String?,
+        gender: String?,
+        dateOfBirth: String?
+    ) throws {
+        if email == nil && firstName == nil && lastName == nil && country == nil
+            && language == nil && homeCity == nil && phoneNumber == nil && gender == nil
+            && dateOfBirth == nil {
+            throw UserProfileValidationError.noFieldsProvided
+        }
+        if let email { try requireNonBlankProfileField(email, field: "email") }
+        if let firstName { try requireNonBlankProfileField(firstName, field: "firstName") }
+        if let lastName { try requireNonBlankProfileField(lastName, field: "lastName") }
+        if let country { try requireNonBlankProfileField(country, field: "country") }
+        if let language { try requireNonBlankProfileField(language, field: "language") }
+        if let homeCity { try requireNonBlankProfileField(homeCity, field: "homeCity") }
+        if let phoneNumber { try requireNonBlankProfileField(phoneNumber, field: "phoneNumber") }
+        if let gender { _ = try parseGender(gender) }
+        if let dateOfBirth { _ = try parseDateOfBirth(dateOfBirth) }
+    }
+
+    /// Sets one or more reserved profile fields. Unlike Android's
+    /// `BrazeUser` (whose reserved-field setters, including
+    /// `setPhoneNumber`, return a Boolean success flag reflecting Braze's
+    /// own native-side validation), BrazeKit's modern `Braze.User` setters
+    /// used here (`set(email:)`, `set(phoneNumber:)`, ...) all return `Void`
+    /// — there is no non-deprecated BrazeKit API that reports whether Braze
+    /// accepted a value such as a malformed phone number. This method can
+    /// therefore only guarantee this plugin's own validation passed, not
+    /// that Braze accepted every field natively; see the README for this
+    /// documented platform difference.
+    func setUserProfile(
+        email: String?,
+        firstName: String?,
+        lastName: String?,
+        country: String?,
+        language: String?,
+        homeCity: String?,
+        phoneNumber: String?,
+        gender: String?,
+        dateOfBirth: String?
+    ) throws {
+        try validateUserProfileFields(
+            email: email,
+            firstName: firstName,
+            lastName: lastName,
+            country: country,
+            language: language,
+            homeCity: homeCity,
+            phoneNumber: phoneNumber,
+            gender: gender,
+            dateOfBirth: dateOfBirth
+        )
+        let parsedGender = try gender.map { try parseGender($0) }
+        let parsedDateOfBirth = try dateOfBirth.map { try parseDateOfBirth($0) }
+
+        let instance = try requireInstance()
+        if let email { instance.user.set(email: email) }
+        if let firstName { instance.user.set(firstName: firstName) }
+        if let lastName { instance.user.set(lastName: lastName) }
+        if let country { instance.user.set(country: country) }
+        if let language { instance.user.set(language: language) }
+        if let homeCity { instance.user.set(homeCity: homeCity) }
+        if let phoneNumber { instance.user.set(phoneNumber: phoneNumber) }
+        if let parsedGender { instance.user.set(gender: parsedGender) }
+        if let parsedDateOfBirth { instance.user.set(dateOfBirth: parsedDateOfBirth) }
+    }
+
+    private func requireNonBlankProfileField(_ value: String, field: String) throws {
+        guard !value.isEmpty, value.count <= 255 else {
+            throw UserProfileValidationError.invalidString(field: field)
+        }
+    }
+
+    /// Maps this plugin's own `gender` string values (documented in the
+    /// README, shared with the Android implementation) to the real
+    /// `Braze.User.Gender` case. Not done via `Gender(rawValue:)` directly:
+    /// BrazeKit's raw values for the two multi-word cases are camelCase
+    /// (`"notApplicable"`, `"preferNotToSay"`), not this plugin's snake_case
+    /// (`"not_applicable"`, `"prefer_not_to_say"`).
+    private func parseGender(_ value: String) throws -> Braze.User.Gender {
+        switch value {
+        case "male": return .male
+        case "female": return .female
+        case "other": return .other
+        case "unknown": return .unknown
+        case "not_applicable": return .notApplicable
+        case "prefer_not_to_say": return .preferNotToSay
+        default:
+            throw UserProfileValidationError.invalidGender(value: value)
+        }
+    }
+
+    /// Parses a `"YYYY-MM-DD"` string into the `Date` `Braze.User.set(dateOfBirth:)`
+    /// takes. Unlike `java.util.Calendar` on Android, Swift's `Calendar`/
+    /// `DateFormatter` have no leniency flag to reject an out-of-range day —
+    /// they silently normalize it instead (e.g. `"2020-02-30"` rolls over to
+    /// March 1st and still parses successfully), so the parsed date is
+    /// formatted back to a string and compared against the input to catch
+    /// that normalization instead of trusting a non-nil parse result.
+    private func parseDateOfBirth(_ value: String) throws -> Date {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        guard let date = formatter.date(from: value), formatter.string(from: date) == value else {
+            throw UserProfileValidationError.invalidDateOfBirth(value: value)
+        }
+        return date
     }
 
     // --- eCommerce events backed by a native BrazeKit type ---
