@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-13
+
+First stable release. No breaking changes and no new functionality since 0.3.0 — this version is validated end-to-end against a real Braze workspace, covering all 14 methods on both Android and iOS and confirming data reaches the Braze dashboard correctly, marking the plugin's official exit from pre-release.
+
 ## [0.3.0] - 2026-08-11
 
 ### Added
